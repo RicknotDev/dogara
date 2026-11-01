@@ -1,0 +1,68 @@
+.dg-speed-button {
+  flex: none;
+  align-self: center;
+  height: 32px;
+  margin: 0 4px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: 500 13px/32px Roboto, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.dg-speed-button:hover,
+.dg-speed-button:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dg-speed-popup {
+  position: absolute;
+  right: 12px;
+  bottom: 64px;
+  z-index: 70;
+  width: 240px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(28, 28, 28, 0.95);
+  color: #fff;
+  font: 13px/1.4 Roboto, Arial, sans-serif;
+}
+
+.dg-speed-popup[hidden] {
+  display: none;
+}
+
+.dg-speed-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dg-speed-presets button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dg-speed-presets button:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.dg-speed-presets button[aria-pressed='true'] {
+  background: #fff;
+  color: #0f0f0f;
+}
+
+.dg-speed-slider {
+  display: block;
+  width: 100%;
+  margin: 0;
+  accent-color: #fff;
+}

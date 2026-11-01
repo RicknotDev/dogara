@@ -1,4 +1,32 @@
-// Puente entre la ventana de YouTube y la app. Corre junto a la página de YouTube,
-// así que todo lo que se exponga acá con contextBridge queda al alcance de esa página.
-// Por ahora no expone nada; el núcleo de módulos lo va a usar.
-export {};
+// Puente entre la ventana de YouTube y la app. Los módulos corren acá, en un espacio aislado:
+// comparten la página con YouTube, pero YouTube no puede ver ni usar este código.
+// Nunca exponer ipcRenderer a la página con contextBridge.
+import { ipcRenderer } from 'electron';
+import { createModuleManager } from '../modules/core';
+import { modules } from '../modules';
+import { IPC, type ModuleInfo, type ModuleState, type StoredModules } from '../shared/modules';
+
+async function start(): Promise<void> {
+  const infos: ModuleInfo[] = modules.map(({ id, name, defaultEnabled }) => ({
+    id,
+    name,
+    defaultEnabled,
+  }));
+  const stored = (await ipcRenderer.invoke(IPC.init, infos)) as StoredModules;
+
+  const manager = createModuleManager(modules, stored, (id: string, state: ModuleState) => {
+    void ipcRenderer.invoke(IPC.save, id, state);
+  });
+
+  ipcRenderer.on(IPC.setEnabled, (_event, id: string, enabled: boolean) => {
+    manager.setEnabled(id, enabled);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => manager.start(), { once: true });
+  } else {
+    manager.start();
+  }
+}
+
+void start();

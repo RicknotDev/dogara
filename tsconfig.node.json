@@ -15,8 +15,6 @@
     "electron.vite.config.ts",
     "vitest.config.mts",
     "src/main/**/*",
-    "src/preload/**/*",
-    "src/shared/**/*",
-    "tests/**/*"
+    "src/shared/**/*"
   ]
 }

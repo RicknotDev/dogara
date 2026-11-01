@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron';
 import icon from '../../resources/icon.png?asset';
+import { IPC, isModuleState, type ModuleInfo } from '../shared/modules';
 import {
   canOpenExternally,
   isAllowedInApp,
@@ -8,11 +9,14 @@ import {
   isPassiveSignIn,
 } from '../shared/navigation';
 import { SIGN_IN_LINKS } from '../shared/youtubeSelectors';
+import { createSettingsStore } from './settingsStore';
 
 const YOUTUBE_URL = 'https://www.youtube.com/';
 
 let mainWindow: BrowserWindow | null = null;
 let aboutWindow: BrowserWindow | null = null;
+let moduleInfos: ModuleInfo[] = [];
+let settings: ReturnType<typeof createSettingsStore>;
 
 function handleBlockedUrl(url: string): void {
   if (isPassiveSignIn(url)) return;
@@ -115,8 +119,44 @@ function openAboutWindow(): void {
   }
 }
 
+// Los pedidos de los módulos solo se aceptan desde la ventana principal, y en un sitio permitido.
+function isTrustedSender(event: IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame;
+  return (
+    event.sender === mainWindow?.webContents &&
+    frame === event.sender.mainFrame &&
+    isAllowedInApp(frame.url)
+  );
+}
+
+function registerModuleHandlers(): void {
+  ipcMain.handle(IPC.init, (event, infos: ModuleInfo[]) => {
+    if (!isTrustedSender(event)) return {};
+    moduleInfos = infos;
+    Menu.setApplicationMenu(buildMenu());
+    return settings.getModules();
+  });
+
+  ipcMain.handle(IPC.save, (event, id: unknown, state: unknown) => {
+    if (!isTrustedSender(event) || !isModuleState(state)) return;
+    if (!moduleInfos.some((info) => info.id === id)) return;
+    settings.setModule(id as string, state);
+  });
+}
+
 function buildMenu(): Menu {
   return Menu.buildFromTemplate([
+    {
+      label: 'Módulos',
+      submenu: moduleInfos.map(({ id, name, defaultEnabled }) => ({
+        label: name,
+        type: 'checkbox' as const,
+        checked: settings.getModules()[id]?.enabled ?? defaultEnabled,
+        click: (item: Electron.MenuItem) => {
+          mainWindow?.webContents.send(IPC.setEnabled, id, item.checked);
+        },
+      })),
+    },
     {
       label: 'Ver',
       submenu: [
@@ -145,6 +185,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    settings = createSettingsStore(join(app.getPath('userData'), 'settings.json'));
+    registerModuleHandlers();
     Menu.setApplicationMenu(buildMenu());
     createMainWindow();
   });
