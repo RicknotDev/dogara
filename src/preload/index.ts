@@ -7,11 +7,16 @@ import { modules } from '../modules';
 import { IPC, type ModuleInfo, type ModuleState, type StoredModules } from '../shared/modules';
 
 async function start(): Promise<void> {
-  const infos: ModuleInfo[] = modules.map(({ id, name, defaultEnabled }) => ({
-    id,
-    name,
-    defaultEnabled,
-  }));
+  const infos: ModuleInfo[] = modules.map(
+    ({ id, name, description, defaultEnabled, settings, fields }) => ({
+      id,
+      name,
+      description,
+      defaultEnabled,
+      settings,
+      fields,
+    }),
+  );
   const stored = (await ipcRenderer.invoke(IPC.init, infos)) as StoredModules;
 
   const manager = createModuleManager(modules, stored, (id: string, state: ModuleState) => {
@@ -20,6 +25,9 @@ async function start(): Promise<void> {
 
   ipcRenderer.on(IPC.setEnabled, (_event, id: string, enabled: boolean) => {
     manager.setEnabled(id, enabled);
+  });
+  ipcRenderer.on(IPC.updateSettings, (_event, id: string, patch: Record<string, unknown>) => {
+    manager.updateSettings(id, patch);
   });
 
   if (document.readyState === 'loading') {

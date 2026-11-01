@@ -1,18 +1,45 @@
-import { PLAYER, PLAYER_RIGHT_CONTROLS, PLAYER_VIDEO } from '../../shared/youtubeSelectors';
+import {
+  PLAYER,
+  PLAYER_RIGHT_CONTROLS,
+  PLAYER_SETTINGS_MENU,
+  PLAYER_VIDEO,
+} from '../../shared/youtubeSelectors';
 import { defineModule } from '../core';
 import { clampSpeed, formatSpeed, MAX_SPEED, MIN_SPEED, NORMAL_SPEED, normalizePresets } from './speed';
 import css from './styles.css?inline';
 
-// YouTube vuelve a su velocidad al cargar cada video. Un cambio en este plazo se corrige;
-// uno posterior es el usuario usando el menú o los atajos de YouTube, y se respeta.
-const LOAD_GRACE_MS = 1500;
+// YouTube vuelve a su velocidad cuando quiere, y a veces bastante después de cargar el video.
+// Por eso un cambio solo se respeta si viene justo después de que una persona usó el menú o
+// los atajos de velocidad de YouTube; cualquier otro se corrige, y nunca se guarda.
+const USER_INPUT_WINDOW_MS = 1000;
 const LOAD_EVENTS = ['loadstart', 'loadedmetadata'];
+const SPEED_KEYS = ['<', '>'];
+
+function isYouTubeSpeedInput(event: Event): boolean {
+  if (!event.isTrusted) return false;
+  if (event.type === 'keydown') return SPEED_KEYS.includes((event as KeyboardEvent).key);
+  return event.target instanceof Element && event.target.closest(PLAYER_SETTINGS_MENU) !== null;
+}
 
 export default defineModule({
   id: 'speed',
   name: 'Velocidades personalizadas',
+  description: 'Agrega al reproductor un botón para elegir cualquier velocidad entre 0.25x y 4x.',
   defaultEnabled: true,
   settings: { speed: NORMAL_SPEED, presets: [1.15, 1.35, 1.75] },
+  fields: [
+    {
+      type: 'numberList',
+      key: 'presets',
+      label: 'Velocidades rápidas',
+      help: 'Aparecen como botones en el panel de velocidad.',
+      min: MIN_SPEED,
+      max: MAX_SPEED,
+      suffix: 'x',
+      maxItems: 10,
+      fixedValues: [NORMAL_SPEED],
+    },
+  ],
 
   onEnable(ctx) {
     ctx.addStyle(css);
@@ -20,7 +47,7 @@ export default defineModule({
     let speed = clampSpeed(ctx.settings.speed);
     let video: HTMLVideoElement | null = null;
     let videoListeners: AbortController | null = null;
-    let lastLoadAt = 0;
+    let lastSpeedInputAt = 0;
 
     const button = document.createElement('button');
     button.className = 'dg-speed-button';
@@ -81,27 +108,19 @@ export default defineModule({
       if (next === video) return;
       videoListeners?.abort();
       video = next;
-      lastLoadAt = Date.now();
       if (!video) return;
 
       videoListeners = new AbortController();
       const { signal } = videoListeners;
       for (const type of LOAD_EVENTS) {
-        video.addEventListener(
-          type,
-          () => {
-            lastLoadAt = Date.now();
-            apply();
-          },
-          { signal },
-        );
+        video.addEventListener(type, apply, { signal });
       }
       video.addEventListener(
         'ratechange',
         () => {
           if (!video || video.playbackRate === speed) return;
-          if (Date.now() - lastLoadAt < LOAD_GRACE_MS) apply();
-          else choose(video.playbackRate);
+          if (Date.now() - lastSpeedInputAt < USER_INPUT_WINDOW_MS) choose(video.playbackRate);
+          else apply();
         },
         { signal },
       );
@@ -140,6 +159,15 @@ export default defineModule({
       button.focus();
     }, { signal: ctx.signal });
     document.addEventListener('click', () => setPopupOpen(false), { signal: ctx.signal });
+    for (const type of ['keydown', 'click', 'pointerup']) {
+      document.addEventListener(
+        type,
+        (event) => {
+          if (isYouTubeSpeedInput(event)) lastSpeedInputAt = Date.now();
+        },
+        { capture: true, signal: ctx.signal },
+      );
+    }
 
     ctx.onCleanup(() => {
       videoListeners?.abort();

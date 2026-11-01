@@ -83,16 +83,77 @@ describe('módulo de velocidades', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it('respeta un cambio hecho después con los controles de YouTube', () => {
+  it('corrige un reinicio tardío de YouTube y no lo guarda', () => {
     start({ speed: 1.75 });
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(60_000);
 
-    video.playbackRate = 2;
+    video.playbackRate = 1;
     video.dispatchEvent(new Event('ratechange'));
 
-    expect(video.playbackRate).toBe(2);
-    expect(button()?.textContent).toBe('2x');
-    expect(save.mock.lastCall![1].settings.speed).toBe(2);
+    expect(video.playbackRate).toBe(1.75);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  describe('cambios hechos con los controles de YouTube', () => {
+    const userEvent = <E extends Event>(event: E): E =>
+      Object.defineProperty(event, 'isTrusted', { value: true });
+    const changeRate = (rate: number) => {
+      video.playbackRate = rate;
+      video.dispatchEvent(new Event('ratechange'));
+    };
+
+    it('respeta el atajo de teclado', () => {
+      start({ speed: 1.75 });
+
+      document.dispatchEvent(userEvent(new KeyboardEvent('keydown', { key: '>', bubbles: true })));
+      changeRate(2);
+
+      expect(video.playbackRate).toBe(2);
+      expect(button()?.textContent).toBe('2x');
+      expect(save.mock.lastCall![1].settings.speed).toBe(2);
+    });
+
+    it('respeta el menú de YouTube', () => {
+      document.querySelector('#movie_player')!.insertAdjacentHTML(
+        'beforeend',
+        '<div class="ytp-settings-menu"><div class="item"></div></div>',
+      );
+      start({ speed: 1.75 });
+
+      document.querySelector('.item')!.dispatchEvent(userEvent(new MouseEvent('click', { bubbles: true })));
+      changeRate(1.5);
+
+      expect(save.mock.lastCall![1].settings.speed).toBe(1.5);
+    });
+
+    it('no cuenta clics en otras partes, como el enlace a otro video', () => {
+      start({ speed: 1.75 });
+
+      document.body.dispatchEvent(userEvent(new MouseEvent('click', { bubbles: true })));
+      changeRate(1);
+
+      expect(video.playbackRate).toBe(1.75);
+      expect(save).not.toHaveBeenCalled();
+    });
+
+    it('no cuenta eventos simulados por la página', () => {
+      start({ speed: 1.75 });
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '>', bubbles: true }));
+      changeRate(2);
+
+      expect(video.playbackRate).toBe(1.75);
+    });
+
+    it('deja de contar pasado un momento', () => {
+      start({ speed: 1.75 });
+
+      document.dispatchEvent(userEvent(new KeyboardEvent('keydown', { key: '>', bubbles: true })));
+      vi.advanceTimersByTime(2000);
+      changeRate(1);
+
+      expect(video.playbackRate).toBe(1.75);
+    });
   });
 
   it('un preset cambia la velocidad y la guarda', () => {
@@ -144,6 +205,17 @@ describe('módulo de velocidades', () => {
     video.playbackRate = 3;
     video.dispatchEvent(new Event('ratechange'));
     expect(video.playbackRate).toBe(3);
+  });
+
+  it('los presets nuevos aparecen sin perder la velocidad elegida', () => {
+    const manager = start({ speed: 1.75 });
+
+    manager.updateSettings('speed', { presets: [1.75, 2.5] });
+
+    const labels = [...popup()!.querySelectorAll('button')].map((b) => b.textContent);
+    expect(labels).toEqual(['1x', '1.75x', '2.5x']);
+    expect(video.playbackRate).toBe(1.75);
+    expect(document.querySelectorAll('.dg-speed-button')).toHaveLength(1);
   });
 
   it('al reactivar restaura la velocidad elegida', () => {

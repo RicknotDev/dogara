@@ -11,7 +11,7 @@ Los autores están aprendiendo a programar: explicá en español qué hace cada 
 - `src/main/`: proceso principal (ventanas, menú, acceso al sistema).
 - `src/preload/`: único puente entre la página de YouTube y la app. Carga los módulos en un espacio aislado que YouTube no puede usar.
 - `src/modules/`: núcleo de módulos (`core.ts`) y una carpeta por módulo. Se registran en `src/modules/index.ts`.
-- `src/renderer/`: pantallas propias en React.
+- `src/renderer/`: pantallas propias en React. Usan su propio puente, `src/preload/settings.ts`, que no debe importar código real de otros archivos.
 - `src/shared/`: código sin dependencias de Electron, compartido y fácil de probar.
 - `tests/`: pruebas con Vitest.
 
@@ -24,7 +24,7 @@ Prevista para más adelante: `src/themes/`.
 - **Sin cuenta de Google:** Google bloquea el login dentro de Electron y decidimos no eludir ese control, así que no cambiamos el user agent ni nos hacemos pasar por otro navegador. Lo que dependa de una cuenta (suscripciones, historial) se guarda en la computadora del usuario.
 - **Selectores de YouTube:** van todos en `src/shared/youtubeSelectors.ts`, porque YouTube los cambia seguido.
 - **Rendimiento:** preferir CSS a JavaScript para ocultar elementos, usar un único observador de cambios compartido y animar solo `transform` y `opacity`.
-- **Módulos:** cada uno se activa por separado y al desactivarlo no queda ningún rastro. Usar `ctx.addStyle`, `ctx.observe`, `ctx.signal` y `ctx.onCleanup`, que se deshacen solos. No crear otro `MutationObserver`.
+- **Módulos:** cada uno se activa por separado y al desactivarlo no queda ningún rastro. Usar `ctx.addStyle`, `ctx.observe`, `ctx.signal` y `ctx.onCleanup`, que se deshacen solos. No crear otro `MutationObserver`. Las opciones se describen en `fields` y la pantalla de Ajustes las muestra sola.
 - **Legal:** nada de "YouTube" en el nombre o el icono, y ninguna función para descargar videos.
 
 ## Antes de dar algo por terminado

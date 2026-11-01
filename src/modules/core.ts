@@ -15,7 +15,7 @@ export interface ModuleContext<S extends object> {
   readonly signal: AbortSignal;
 }
 
-export interface ModuleDefinition<S extends object> extends ModuleInfo {
+export interface ModuleDefinition<S extends object> extends Omit<ModuleInfo, 'settings'> {
   settings: S;
   onEnable(ctx: ModuleContext<S>): void;
   onDisable?(ctx: ModuleContext<S>): void;
@@ -127,6 +127,19 @@ export function createModuleManager(
       save(id, state);
       if (enabled) enable(module);
       else disable(module);
+    },
+    // Si el módulo está activo se reinicia, para que tome las opciones nuevas sin recargar.
+    updateSettings(id: string, patch: Record<string, unknown>): void {
+      const module = modules.find((candidate) => candidate.id === id);
+      const state = states.get(id);
+      if (!module || !state) return;
+
+      state.settings = { ...state.settings, ...patch };
+      save(id, state);
+      if (active.has(id)) {
+        disable(module);
+        enable(module);
+      }
     },
   };
 }

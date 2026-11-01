@@ -358,7 +358,7 @@ Los riesgos principales son que YouTube cambie su página y rompa módulos, y qu
 
 ## Próximos pasos
 
-El esqueleto y el núcleo de módulos ya están hechos y publicados en GitHub; lo que sigue es completar la v0.1, empezando por Ajustes y Suscripciones locales.
+El esqueleto, el núcleo de módulos y la pantalla de Ajustes ya están hechos; lo que sigue es completar la v0.1, empezando por Suscripciones locales.
 
 - [x] Elegir el nombre definitivo
 - [x] Instalar Git, Node.js LTS y Claude Code
@@ -369,9 +369,9 @@ El esqueleto y el núcleo de módulos ya están hechos y publicados en GitHub; l
 - [x] Crear el repositorio en GitHub y subir el código
 - [x] Confirmar que compila en Linux con GitHub Actions
 - [x] Construir el núcleo de módulos y el primer módulo simple: velocidades personalizadas
+- [x] Construir la pantalla de Ajustes, con los presets editables de velocidad
 - [ ] Instalar Visual Studio Code (no se comprobó si ya está)
 - [ ] Hacer la semana 1 de la ruta de aprendizaje (HTML y CSS)
 - [ ] Abrir la app en Linux para comprobar que funciona
 - [ ] Generar y probar los instaladores de Windows y Linux, y medir su tamaño
-- [ ] Construir la pantalla de Ajustes, con los presets editables de velocidad
 - [ ] Construir el módulo Suscripciones locales

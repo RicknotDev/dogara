@@ -9,6 +9,7 @@ function createTestModule(defaultEnabled = true) {
   const module = defineModule({
     id: 'test',
     name: 'Prueba',
+    description: '',
     defaultEnabled,
     settings: { value: 1, other: 'a' },
     onEnable,
@@ -105,6 +106,7 @@ describe('createModuleManager', () => {
     const broken = defineModule({
       id: 'broken',
       name: 'Roto',
+      description: '',
       defaultEnabled: true,
       settings: {},
       onEnable(ctx) {
@@ -118,6 +120,30 @@ describe('createModuleManager', () => {
 
     expect(onEnable).toHaveBeenCalledOnce();
     expect(document.head.querySelectorAll('style')).toHaveLength(0);
+  });
+
+  it('al cambiar opciones reinicia el módulo activo con los valores nuevos', () => {
+    const { module, onEnable, onDisable } = createTestModule();
+    const save = vi.fn();
+    const manager = createModuleManager([module], {}, save);
+    manager.start();
+
+    manager.updateSettings('test', { value: 9 });
+
+    expect(onDisable).toHaveBeenCalledOnce();
+    expect(onEnable).toHaveBeenCalledTimes(2);
+    expect(contextOf(onEnable).settings.value).toBe(9);
+    expect(save.mock.lastCall![1].settings.value).toBe(9);
+  });
+
+  it('al cambiar opciones no activa un módulo apagado', () => {
+    const { module, onEnable } = createTestModule(false);
+    const manager = createModuleManager([module], {}, vi.fn());
+    manager.start();
+
+    manager.updateSettings('test', { value: 9 });
+
+    expect(onEnable).not.toHaveBeenCalled();
   });
 
   it('ignora módulos desconocidos', () => {

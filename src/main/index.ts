@@ -1,7 +1,14 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron';
 import icon from '../../resources/icon.png?asset';
-import { IPC, isModuleState, type ModuleInfo } from '../shared/modules';
+import {
+  applySettingsPatch,
+  IPC,
+  isModuleState,
+  toModuleView,
+  type ModuleInfo,
+  type ModuleView,
+} from '../shared/modules';
 import {
   canOpenExternally,
   isAllowedInApp,
@@ -15,6 +22,7 @@ const YOUTUBE_URL = 'https://www.youtube.com/';
 
 let mainWindow: BrowserWindow | null = null;
 let aboutWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
 let moduleInfos: ModuleInfo[] = [];
 let settings: ReturnType<typeof createSettingsStore>;
 
@@ -110,13 +118,52 @@ function openAboutWindow(): void {
     aboutWindow = null;
   });
 
-  const version = app.getVersion();
+  loadPage(aboutWindow, { page: 'about', version: app.getVersion() });
+}
+
+function loadPage(window: BrowserWindow, query: Record<string, string>): void {
   const devServerUrl = process.env.ELECTRON_RENDERER_URL;
   if (devServerUrl) {
-    void aboutWindow.loadURL(`${devServerUrl}?version=${version}`);
+    void window.loadURL(`${devServerUrl}?${new URLSearchParams(query).toString()}`);
   } else {
-    void aboutWindow.loadFile(join(__dirname, '../renderer/index.html'), { query: { version } });
+    void window.loadFile(join(__dirname, '../renderer/index.html'), { query });
   }
+}
+
+function openSettingsWindow(): void {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 640,
+    height: 600,
+    minWidth: 420,
+    minHeight: 320,
+    parent: mainWindow ?? undefined,
+    icon,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#0f0f0f',
+    webPreferences: {
+      preload: join(__dirname, '../preload/settings.js'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  settingsWindow.once('ready-to-show', () => settingsWindow?.show());
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  // Esta ventana tiene acceso a los ajustes, así que nunca debe salir de la página propia.
+  const { webContents } = settingsWindow;
+  webContents.on('will-navigate', (event) => event.preventDefault());
+  webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  loadPage(settingsWindow, { page: 'settings' });
 }
 
 // Los pedidos de los módulos solo se aceptan desde la ventana principal, y en un sitio permitido.
@@ -129,11 +176,23 @@ function isTrustedSender(event: IpcMainInvokeEvent): boolean {
   );
 }
 
+function isSettingsSender(event: IpcMainInvokeEvent): boolean {
+  return event.sender === settingsWindow?.webContents;
+}
+
+function moduleViews(): ModuleView[] {
+  return moduleInfos.map((info) => toModuleView(info, settings.getModules()[info.id]));
+}
+
+function notifySettingsWindow(): void {
+  settingsWindow?.webContents.send(IPC.settingsChanged, moduleViews());
+}
+
 function registerModuleHandlers(): void {
   ipcMain.handle(IPC.init, (event, infos: ModuleInfo[]) => {
     if (!isTrustedSender(event)) return {};
     moduleInfos = infos;
-    Menu.setApplicationMenu(buildMenu());
+    notifySettingsWindow();
     return settings.getModules();
   });
 
@@ -141,21 +200,39 @@ function registerModuleHandlers(): void {
     if (!isTrustedSender(event) || !isModuleState(state)) return;
     if (!moduleInfos.some((info) => info.id === id)) return;
     settings.setModule(id as string, state);
+    notifySettingsWindow();
+  });
+
+  ipcMain.handle(IPC.settingsGetModules, (event) => (isSettingsSender(event) ? moduleViews() : []));
+
+  // Se guarda acá y no solo en la ventana de YouTube, que podría estar recargando la página.
+  ipcMain.handle(IPC.settingsSetEnabled, (event, id: unknown, enabled: unknown) => {
+    const view = moduleViews().find((candidate) => candidate.id === id);
+    if (!isSettingsSender(event) || !view || typeof enabled !== 'boolean') return;
+    settings.setModule(view.id, { enabled, settings: view.settings });
+    mainWindow?.webContents.send(IPC.setEnabled, view.id, enabled);
+    notifySettingsWindow();
+  });
+
+  ipcMain.handle(IPC.settingsUpdate, (event, id: unknown, patch: unknown) => {
+    const view = moduleViews().find((candidate) => candidate.id === id);
+    if (!isSettingsSender(event) || !view) return;
+    const state = applySettingsPatch(view, patch);
+    settings.setModule(view.id, state);
+    mainWindow?.webContents.send(IPC.updateSettings, view.id, state.settings);
+    notifySettingsWindow();
   });
 }
 
 function buildMenu(): Menu {
   return Menu.buildFromTemplate([
     {
-      label: 'Módulos',
-      submenu: moduleInfos.map(({ id, name, defaultEnabled }) => ({
-        label: name,
-        type: 'checkbox' as const,
-        checked: settings.getModules()[id]?.enabled ?? defaultEnabled,
-        click: (item: Electron.MenuItem) => {
-          mainWindow?.webContents.send(IPC.setEnabled, id, item.checked);
-        },
-      })),
+      label: 'Archivo',
+      submenu: [
+        { label: 'Ajustes', accelerator: 'CmdOrCtrl+,', click: openSettingsWindow },
+        { type: 'separator' },
+        { label: 'Salir', role: 'quit' },
+      ],
     },
     {
       label: 'Ver',
