@@ -1,0 +1,25 @@
+appId: io.github.ricknotdev.dogara
+productName: Dōgara
+executableName: dogara
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+win:
+  icon: resources/icon.png
+  target:
+    - nsis
+    - portable
+nsis:
+  artifactName: dogara-${version}-setup.${ext}
+portable:
+  artifactName: dogara-${version}-portable.${ext}
+linux:
+  icon: resources/icon.png
+  category: AudioVideo
+  artifactName: dogara-${version}-${arch}.${ext}
+  target:
+    - AppImage
+    - deb
+    - rpm
