@@ -2,6 +2,8 @@
 
 App de escritorio (Windows y Linux) que abre YouTube en su propia ventana y le suma funciones por módulos. Stack: Electron, TypeScript, React y Vite (con electron-vite), y electron-builder para los instaladores.
 
+El plan completo, con el catálogo de módulos y el roadmap, está en `docs/plan.md`.
+
 Los autores están aprendiendo a programar: explicá en español qué hace cada cambio, en lenguaje simple, y trabajá de a una tarea chica por vez.
 
 ## Estructura
